@@ -35,7 +35,11 @@ export async function sendTelegramMessage(args: {
     }
     return true;
   } catch (err) {
-    log.warn('Telegram send failed', { err: (err as Error).message });
+    // Surface Telegram's actual error description, not just the HTTP code.
+    // 400s are usually HTML parse errors or chat_not_found.
+    const e = err as { response?: { data?: { description?: string } }; message?: string };
+    const desc = e?.response?.data?.description ?? e?.message ?? String(err);
+    log.warn('Telegram send failed', { err: desc });
     return false;
   }
 }

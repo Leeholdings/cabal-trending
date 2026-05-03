@@ -8,6 +8,16 @@ import type { DexScreenerPair } from '../dexscreener/client.js';
 import type { ScoreOutput } from '../scoring/engine.js';
 import type { AlertTier } from '../scoring/tiers.js';
 
+/** Escape user-supplied content for Telegram HTML parse mode.
+ * Memecoin names often contain &, <, >, etc. which break HTML parsing.
+ */
+const escHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;')
+   .replace(/</g, '&lt;')
+   .replace(/>/g, '&gt;')
+   .replace(/"/g, '&quot;')
+   .replace(/'/g, '&#39;');
+
 const fmtUsd = (v: number | null | undefined): string => {
   if (v === null || v === undefined) return '—';
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
@@ -88,9 +98,9 @@ export function formatAlert(args: {
   score: ScoreOutput;
 }): FormattedAlert {
   const { tier, pair, score } = args;
-  const sym  = pair.baseToken?.symbol ?? '???';
-  const name = pair.baseToken?.name ?? '';
-  const url  = pair.url ?? `https://dexscreener.com/${pair.chainId}/${pair.pairAddress}`;
+  const sym  = escHtml(pair.baseToken?.symbol ?? '???');
+  const name = escHtml(pair.baseToken?.name ?? '');
+  const url  = escHtml(pair.url ?? `https://dexscreener.com/${pair.chainId}/${pair.pairAddress}`);
   const pcM5 = pair.priceChange?.m5 ?? null;
 
   const lines: string[] = [];
