@@ -120,6 +120,24 @@ export class DexScreenerClient {
     );
     return Array.isArray(data) ? data : [];
   }
+
+  /** Latest boosted tokens (trending). Profile endpoint, lower rate limit. */
+  async boostedTokensLatest(): Promise<Array<{ chainId: string; tokenAddress: string }>> {
+    const data = await this.getJson<Array<{ chainId: string; tokenAddress: string }>>(
+      '/token-boosts/latest/v1',
+      true,
+    );
+    return Array.isArray(data) ? data : [];
+  }
+
+  /** Top boosted tokens (most paid for visibility). Profile endpoint. */
+  async boostedTokensTop(): Promise<Array<{ chainId: string; tokenAddress: string }>> {
+    const data = await this.getJson<Array<{ chainId: string; tokenAddress: string }>>(
+      '/token-boosts/top/v1',
+      true,
+    );
+    return Array.isArray(data) ? data : [];
+  }
 }
 
 let _client: DexScreenerClient | null = null;
