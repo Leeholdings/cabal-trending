@@ -40,6 +40,35 @@ export async function runDiscovery(): Promise<void> {
 
   log.info('Discovery cycle starting', { seeds: cfg.discovery.seedQueries.length });
   let surfaced = 0;
+
+  // ---- Source 1: trending boosted tokens (memecoin-native, much better hit rate) ----
+  try {
+    const boosted = [
+      ...(await dex().boostedTokensLatest()),
+      ...(await dex().boostedTokensTop()),
+    ].filter((t) => t.chainId === 'solana');
+    const uniqAddrs = Array.from(new Set(boosted.map((t) => t.tokenAddress)));
+    log.info(`boosted Solana tokens: ${uniqAddrs.length}`);
+    for (const tokenAddress of uniqAddrs) {
+      let pairs: DexScreenerPair[] = [];
+      try {
+        pairs = await dex().tokenPairs('solana', tokenAddress);
+      } catch (e) {
+        log.debug(`tokenPairs(${tokenAddress}) failed`, { err: (e as Error).message });
+        continue;
+      }
+      for (const p of pairs) {
+        if (p.chainId !== 'solana') continue;
+        if (!passesBaseFilter(p)) continue;
+        upsertPair(p);
+        surfaced++;
+      }
+    }
+  } catch (e) {
+    log.warn('boosted tokens fetch failed', { err: (e as Error).message });
+  }
+
+  // ---- Source 2: classic seed-query search (kept as a fallback) ----
   for (const q of cfg.discovery.seedQueries) {
     let pairs: DexScreenerPair[] = [];
     try {
