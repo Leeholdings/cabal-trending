@@ -1,0 +1,4 @@
+{
+  "comment": "Optional explicit pair addresses to always poll regardless of discovery filters. Add Solana pair addresses to the 'pairs' array.",
+  "pairs": []
+}

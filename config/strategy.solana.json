@@ -1,0 +1,27 @@
+{
+  "chainId": "solana",
+  "marketCapMin": 500000,
+  "marketCapMax": 3000000,
+  "liquidityMin": 40000,
+  "liquidityMax": 300000,
+  "volumeH24Min": 50000,
+  "pairAgeMaxDays": 7,
+  "pollIntervalSeconds": 20,
+  "watchAlert": {
+    "volumeAccelerationMin": 1.4,
+    "volumeAccelerationMax": 1.8,
+    "priceChangeM5Max": 6
+  },
+  "tradeRadarAlert": {
+    "volumeAccelerationMin": 1.8,
+    "volumeAccelerationMax": 2.5,
+    "priceChangeM5Max": 10
+  },
+  "cautionAlert": {
+    "volumeAccelerationMin": 3.0,
+    "priceChangeM5Min": 20
+  },
+  "buyRatioIdealMin": 45,
+  "buyRatioIdealMax": 65,
+  "duplicateAlertCooldownMinutes": 10
+}

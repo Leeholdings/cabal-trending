@@ -1,0 +1,29 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Local data
+# NOTE: data/cabal.sqlite is force-added by the GitHub Actions workflow so
+# state persists between cron runs. Locally it's still gitignored (cleaner).
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/*.sqlite-shm
+# Uncomment to ignore the SQLite file locally too (workflow uses git add -f):
+# data/*.sqlite
+
+data/exports/*
+!data/exports/.gitkeep
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

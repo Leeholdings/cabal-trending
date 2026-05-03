@@ -1,0 +1,21 @@
+{
+  "comment": "Seed search queries used to discover candidate Solana pairs via DexScreener /latest/dex/search. Tweak to bias toward different categories. More seeds = wider net but more API calls per discovery cycle.",
+  "seedQueries": [
+    "SOL",
+    "USDC",
+    "BONK",
+    "WIF",
+    "PEPE",
+    "MEME",
+    "PUMP",
+    "AI",
+    "MOG",
+    "CAT",
+    "DOG",
+    "SHIB",
+    "FLOKI",
+    "TRUMP",
+    "GROK"
+  ],
+  "discoveryIntervalMinutes": 5
+}

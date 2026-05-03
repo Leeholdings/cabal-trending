@@ -1,0 +1,37 @@
+{
+  "name": "cabal-trending",
+  "version": "0.1.0",
+  "description": "Solana memecoin volume-anomaly scanner with Telegram alerts. Observation only.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx/esm src/index.ts",
+    "scan": "tsx src/run-once.ts",
+    "backtest": "tsx src/backtest/index.ts",
+    "test-alert": "tsx src/alerts/test-alert.ts",
+    "get-chat-id": "tsx tools/get-chat-id.ts",
+    "lint": "eslint . --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.5",
+    "@types/node-cron": "^3.0.11",
+    "@typescript-eslint/eslint-plugin": "^8.8.1",
+    "@typescript-eslint/parser": "^8.8.1",
+    "eslint": "^9.12.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}
