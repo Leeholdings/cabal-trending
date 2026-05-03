@@ -233,3 +233,5 @@ trades, hold custody of any keys, or recommend specific actions.
 The CAUTION tier exists specifically to flag situations where the alert
 is *too late* — high volume + already-moved price = somebody else's exit.
 Don't chase CAUTIONs; treat them as warnings, not signals.
+#   c a b a l - t r e n d i n g  
+ 
