@@ -1,11 +1,11 @@
 {
   "chainId": "solana",
   "marketCapMin": 500000,
-  "marketCapMax": 3000000,
+  "marketCapMax": 10000000,
   "liquidityMin": 40000,
   "liquidityMax": 300000,
   "volumeH24Min": 50000,
-  "pairAgeMaxDays": 7,
+  "pairAgeMaxDays": 365,
   "pollIntervalSeconds": 20,
   "watchAlert": {
     "volumeAccelerationMin": 1.4,
