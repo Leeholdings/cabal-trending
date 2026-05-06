@@ -38,6 +38,9 @@ export interface StrategyConfig {
   volumeH24Min: number;
   pairAgeMaxDays: number;
   pollIntervalSeconds: number;
+  // Noise floors — alert is suppressed if either is below threshold
+  minM5Txns?: number;       // default 10 if absent
+  minM5VolumeUsd?: number;  // default 2000 if absent
   watchAlert: AlertTierThresholds;
   tradeRadarAlert: AlertTierThresholds;
   cautionAlert: AlertTierThresholds;

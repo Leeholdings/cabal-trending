@@ -7,6 +7,13 @@
 import type { DexScreenerPair } from '../dexscreener/client.js';
 import type { ScoreOutput } from '../scoring/engine.js';
 import type { AlertTier } from '../scoring/tiers.js';
+import { getConfig } from '../config/loader.js';
+
+const fmtRange = (min: number, max: number): string => {
+  const fmt = (n: number) =>
+    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(0)}M` : `$${(n / 1_000).toFixed(0)}K`;
+  return `${fmt(min)}-${fmt(max)}`;
+};
 
 /** Escape user-supplied content for Telegram HTML parse mode.
  * Memecoin names often contain &, <, >, etc. which break HTML parsing.
@@ -47,8 +54,11 @@ const tierEmoji = (t: AlertTier): string => {
 };
 
 const tierStateLine = (t: AlertTier, marketCap: number | null | undefined): string => {
+  const s = getConfig().strategy;
   const cap = marketCap ?? 0;
-  const range = cap >= 500_000 && cap <= 3_000_000 ? 'within the $500K-$3M range' : 'outside our usual MC range';
+  const inRange = cap >= s.marketCapMin && cap <= s.marketCapMax;
+  const rangeText = fmtRange(s.marketCapMin, s.marketCapMax);
+  const range = inRange ? `within the ${rangeText} range` : `outside the ${rangeText} range`;
   switch (t) {
     case 'WATCH':
       return `Token is ${range} with rising M5 volume.`;

@@ -137,6 +137,19 @@ export async function runPoll(): Promise<void> {
     const priceChangeM5Abs = Math.abs(p.priceChange?.m5 ?? 0);
     const tier = classifyTier(score, priceChangeM5Abs);
     if (!tier) continue;
+
+    // Noise floor: skip alerts where the underlying activity is too thin
+    // to be statistically meaningful. Tunable in config.
+    const cfg = getConfig().strategy;
+    const minTxns = cfg.minM5Txns ?? 10;
+    const minVolUsd = cfg.minM5VolumeUsd ?? 2000;
+    const m5TxnTotal = (p.txns?.m5?.buys ?? 0) + (p.txns?.m5?.sells ?? 0);
+    const m5Vol = p.volume?.m5 ?? 0;
+    if (m5TxnTotal < minTxns || m5Vol < minVolUsd) {
+      log.debug(`Suppressing alert for ${p.baseToken.symbol ?? pairAddress}: noise floor not met (txns=${m5TxnTotal}, vol=$${m5Vol.toFixed(0)})`);
+      continue;
+    }
+
     if (!shouldFire(pairAddress, tier)) continue;
 
     const formatted = formatAlert({ tier, pair: p, score });

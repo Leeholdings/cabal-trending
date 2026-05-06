@@ -7,6 +7,8 @@
   "volumeH24Min": 50000,
   "pairAgeMaxDays": 365,
   "pollIntervalSeconds": 20,
+  "minM5Txns": 10,
+  "minM5VolumeUsd": 2000,
   "watchAlert": {
     "volumeAccelerationMin": 1.4,
     "volumeAccelerationMax": 1.8,
