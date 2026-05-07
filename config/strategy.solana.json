@@ -4,15 +4,18 @@
   "tieredAlertsEnabled": false,
   "moneyFlowAnomaly": {
     "enabled": true,
-    "minScore": 70,
-    "rankBoostTopPercent": 10,
-    "rankBoostAmount": 5,
-    "cooldownMinutes": 180,
-    "escalationRefireScoreIncrease": 10,
+    "minScore": 80,
+    "rankBoostTopPercent": 5,
+    "rankBoostAmount": 3,
+    "rankBoostMinBase": 65,
+    "cooldownMinutes": 360,
+    "escalationRefireScoreIncrease": 15,
     "lookbackHours": 4,
-    "minLiquidityHardReject": 5000,
-    "maxLiquidityDropPct": 30,
-    "maxM5VolumeLiquidityRatio": 1.5
+    "minLiquidityHardReject": 15000,
+    "minM5VolumeUsd": 8000,
+    "minM5Txns": 25,
+    "maxLiquidityDropPct": 25,
+    "maxM5VolumeLiquidityRatio": 1.0
   },
 
   "marketCapMin": 100000,

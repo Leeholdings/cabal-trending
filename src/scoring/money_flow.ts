@@ -8,17 +8,6 @@
  * Then a separate cross-pair ranking pass boosts the leaders of the current
  * scan so we surface "where money is concentrating RIGHT NOW relative to
  * the rest of the Solana memecoin market."
- *
- * Components (with weights for the base score):
- *   25% relative volume expansion   (curM5 vs token's own past-hour median)
- *   15% transaction expansion        (harder to wash than volume)
- *   10% liquidity confirmation       (growing/stable = good)
- *   15% buy pressure quality         (adaptive curve, sweet spot 60-75%)
- *   15% volume sustainability        (H1 vs H6/6 average rate)
- *   15% price/volume relationship    (compressed price + rising vol = staging)
- *    5% market-cap opportunity       (adaptive, peaks $500K-$5M)
- *      x age modifier                (multiplier 0.85-1.20)
- *      - safety penalty              (deducted, 0-30)
  */
 import type { SnapshotRow } from '../db/snapshots.js';
 import type { DexScreenerPair } from '../dexscreener/client.js';
@@ -32,20 +21,19 @@ export interface MoneyFlowComponents {
   volumeSustainability: number;
   marketCapOpportunity: number;
   priceVolumeRelationship: number;
-  ageContextModifier: number;       // multiplier
-  safetyPenalty: number;            // deducted
+  ageContextModifier: number;
+  safetyPenalty: number;
 }
 
 export interface MoneyFlowScore {
-  overall: number;          // final 0-100 (after rank boost + penalty)
-  baseScore: number;        // before rank boost (after age modifier)
-  rankBoost: number;        // applied later in cross-pair pass
+  overall: number;
+  baseScore: number;
+  rankBoost: number;
   components: MoneyFlowComponents;
   reasons: string[];
   riskFlags: string[];
   hardReject: boolean;
   rejectReason?: string;
-  // Diagnostic context
   volRatio: number;
   txnRatio: number;
   liqRatio: number;
@@ -87,7 +75,6 @@ export function scoreMoneyFlow(
   const reasons: string[] = [];
   const riskFlags: string[] = [];
 
-  // ---------- Hard rejects (only obvious trash) ----------
   const liq = pair.liquidity?.usd ?? 0;
   const m5Vol = pair.volume?.m5 ?? 0;
   const m5Buys = pair.txns?.m5?.buys ?? 0;
@@ -103,7 +90,15 @@ export function scoreMoneyFlow(
   if (priceUsd <= 0) return rejectScore('no price data');
   if (h24TxnTotal === 0) return rejectScore('zero txns past 24h');
 
-  // Anti-rug: liquidity drained vs prior snapshot
+  const minM5Vol = cfg?.minM5VolumeUsd ?? 0;
+  if (minM5Vol > 0 && m5Vol < minM5Vol) {
+    return rejectScore(`M5 vol $${m5Vol.toFixed(0)} < hard-floor $${minM5Vol}`);
+  }
+  const minM5TxFloor = cfg?.minM5Txns ?? 0;
+  if (minM5TxFloor > 0 && m5TxnTotal < minM5TxFloor) {
+    return rejectScore(`M5 txns ${m5TxnTotal} < hard-floor ${minM5TxFloor}`);
+  }
+
   if (snapshots.length >= 2) {
     const prior = snapshots[snapshots.length - 2]!;
     const priorLiq = prior.liquidity_usd ?? 0;
@@ -116,50 +111,43 @@ export function scoreMoneyFlow(
     }
   }
 
-  // Anti-fake-liquidity: vol/liq absurdity
   const volLiqRatio = liq > 0 ? m5Vol / liq : 0;
   const maxVolLiq = cfg?.maxM5VolumeLiquidityRatio ?? 1.5;
   if (volLiqRatio > maxVolLiq) {
     return rejectScore(`vol/liq ${volLiqRatio.toFixed(2)}x impossible legitimately`);
   }
 
-  // Anti-pump-bot: buy ratio at absolute extremes WITH substantial volume
   const buyRatio = m5TxnTotal > 0 ? (m5Buys / m5TxnTotal) * 100 : 50;
   if (m5Vol > 1000 && (buyRatio >= 97 || buyRatio <= 3)) {
     return rejectScore(`extreme buy ratio ${buyRatio.toFixed(0)}% with $${m5Vol.toFixed(0)} vol`);
   }
 
-  // ---------- Now SCORE every component (no rejection from here on) ----------
-
-  // 1. Relative volume expansion
   const m5VolHistory = snapshots.map((s) => s.volume_m5 ?? 0).filter((v) => v > 0);
   const m5Median = m5VolHistory.length > 0 ? median(m5VolHistory) : m5Vol;
   const volRatio = m5Median > 0 ? m5Vol / m5Median : (m5Vol > 0 ? 1 : 0);
-  let relVolScore = clip(((volRatio - 1) / 3) * 100); // 1x=0, 2x=33, 4x=100
+  let relVolScore = clip(((volRatio - 1) / 5) * 100);
 
   if (snapshots.length >= 4) {
     const recent3 = snapshots.slice(-4, -1).map((s) => s.volume_m5 ?? 0);
-    const sustainedHigh = recent3.filter((v) => m5Median > 0 && v > m5Median * 1.5).length;
+    const sustainedHigh = recent3.filter((v) => m5Median > 0 && v > m5Median * 2.0).length;
     if (sustainedHigh >= 2) {
-      relVolScore = clip(relVolScore + 15);
+      relVolScore = clip(relVolScore + 10);
       reasons.push(`Volume ${volRatio.toFixed(2)}x baseline, sustained across ${sustainedHigh + 1} buckets`);
-    } else if (volRatio > 1.5) {
+    } else if (volRatio > 2.0) {
       reasons.push(`Volume ${volRatio.toFixed(2)}x baseline (single spike)`);
     }
-  } else if (volRatio > 1.5) {
+  } else if (volRatio > 2.0) {
     reasons.push(`Volume ${volRatio.toFixed(2)}x baseline (limited history)`);
   }
 
-  // 2. Transaction expansion
   const txnHistory = snapshots.map((s) => s.txns_m5 ?? 0).filter((v) => v > 0);
   const txnMedian = txnHistory.length > 0 ? median(txnHistory) : m5TxnTotal;
   const txnRatio = txnMedian > 0 ? m5TxnTotal / txnMedian : (m5TxnTotal > 0 ? 1 : 0);
-  const txnExpScore = clip(((txnRatio - 1) / 3) * 100);
-  if (txnRatio > 1.5) {
+  const txnExpScore = clip(((txnRatio - 1) / 4) * 100);
+  if (txnRatio > 2.0) {
     reasons.push(`Txns ${txnRatio.toFixed(2)}x baseline (${m5TxnTotal} now vs ${txnMedian.toFixed(0)} median)`);
   }
 
-  // 3. Liquidity confirmation
   const liqHistory = snapshots.map((s) => s.liquidity_usd ?? 0).filter((v) => v > 0);
   const liqMedian = liqHistory.length > 0 ? median(liqHistory) : liq;
   const liqRatio = liqMedian > 0 ? liq / liqMedian : 1;
@@ -177,7 +165,6 @@ export function scoreMoneyFlow(
     riskFlags.push(`Liquidity dropped ${((1 - liqRatio) * 100).toFixed(0)}% vs baseline`);
   }
 
-  // 4. Buy pressure quality (adaptive curve)
   let buyPressureScore: number;
   if (m5TxnTotal === 0) {
     buyPressureScore = 30;
@@ -201,25 +188,23 @@ export function scoreMoneyFlow(
     riskFlags.push(`Buy ratio ${buyRatio.toFixed(0)}% — likely bot pump`);
   }
 
-  // 5. Volume sustainability: H1 vs H6/6 expected rate
   const volH1 = pair.volume?.h1 ?? 0;
   const volH6 = pair.volume?.h6 ?? 0;
   const expectedH1Rate = volH6 / 6;
   const sustRatio = expectedH1Rate > 0 ? volH1 / expectedH1Rate : (volH1 > 0 ? 1 : 0);
   let sustScore: number;
-  if (sustRatio >= 2.5) {
+  if (sustRatio >= 3.5) {
     sustScore = 100;
     reasons.push(`H1 vol ${sustRatio.toFixed(1)}x H6 avg rate (strong acceleration)`);
-  } else if (sustRatio >= 1.5) {
-    sustScore = 80;
+  } else if (sustRatio >= 2.0) {
+    sustScore = 75;
     reasons.push(`H1 vol ${sustRatio.toFixed(1)}x H6 avg rate`);
-  } else if (sustRatio >= 1.0) {
-    sustScore = 50;
+  } else if (sustRatio >= 1.2) {
+    sustScore = 40;
   } else {
-    sustScore = 20;
+    sustScore = 15;
   }
 
-  // 6. Market cap opportunity (adaptive, peaks at $500K-$5M)
   const cap = pair.marketCap ?? pair.fdv ?? 0;
   let mcOpp: number;
   if (cap < 100_000)         mcOpp = 30;
@@ -230,26 +215,24 @@ export function scoreMoneyFlow(
   else if (cap <= 50_000_000) mcOpp = 50;
   else                        mcOpp = 30;
 
-  // 7. Price/volume relationship
   const priceChangeM5 = Math.abs(pair.priceChange?.m5 ?? 0);
   let pvScore: number;
-  if (volRatio >= 1.5 && priceChangeM5 < 5) {
+  if (volRatio >= 2.0 && priceChangeM5 < 5) {
     pvScore = 100;
     reasons.push(`Price compressed (${priceChangeM5.toFixed(1)}%) while volume expanded — staging signature`);
-  } else if (volRatio >= 1.5 && priceChangeM5 < 15) {
-    pvScore = 80;
+  } else if (volRatio >= 2.0 && priceChangeM5 < 12) {
+    pvScore = 75;
     reasons.push(`Price beginning to respond (${priceChangeM5.toFixed(1)}%) with volume`);
-  } else if (volRatio >= 1.5 && priceChangeM5 < 30) {
-    pvScore = 60;
+  } else if (volRatio >= 2.0 && priceChangeM5 < 25) {
+    pvScore = 45;
     reasons.push(`Price moving (${priceChangeM5.toFixed(1)}%) — mid-move`);
-  } else if (volRatio >= 1.5) {
-    pvScore = 30;
+  } else if (volRatio >= 2.0) {
+    pvScore = 20;
     riskFlags.push(`Price already moved ${priceChangeM5.toFixed(0)}% — late entry risk`);
   } else {
-    pvScore = 40;
+    pvScore = 25;
   }
 
-  // 8. Age context modifier (multiplier)
   let ageMod = 1.0;
   if (pair.pairCreatedAt) {
     const ageDays = (Date.now() - pair.pairCreatedAt) / (24 * 60 * 60 * 1000);
@@ -260,7 +243,6 @@ export function scoreMoneyFlow(
     else                    ageMod = 0.85;
   }
 
-  // 9. Safety penalty (additive, capped at 30)
   let safetyPenalty = 0;
   if (volLiqRatio > 0.5)                    safetyPenalty += 10;
   if (liqRatio < 0.95)                      safetyPenalty += 5;
@@ -268,7 +250,6 @@ export function scoreMoneyFlow(
   if (volLiqRatio > 0.5)                    riskFlags.push(`Vol/liq ratio ${volLiqRatio.toFixed(2)}x — suspicious`);
   safetyPenalty = Math.min(30, safetyPenalty);
 
-  // ---------- Composite ----------
   const baseRaw =
     relVolScore         * 0.25 +
     txnExpScore         * 0.15 +
@@ -279,7 +260,6 @@ export function scoreMoneyFlow(
     pvScore             * 0.15;
   const baseScore = clip(baseRaw * ageMod);
 
-  // overall = base - safety (rank boost added in second pass)
   const overall = clip(baseScore - safetyPenalty);
 
   return {
@@ -307,21 +287,17 @@ export function scoreMoneyFlow(
   };
 }
 
-/**
- * Apply cross-pair ranking. Top X% gets +Y boost, top 3% gets +2Y.
- * Mutates the score objects in place.
- */
 export function applyRankBoost(
   scoredPairs: Array<{ pair: DexScreenerPair; score: MoneyFlowScore }>,
 ): void {
   const cfg = getConfig().strategy.moneyFlowAnomaly;
   const topPercent = cfg?.rankBoostTopPercent ?? 10;
   const boostAmount = cfg?.rankBoostAmount ?? 5;
+  const minBase = cfg?.rankBoostMinBase ?? 60;
 
   const valid = scoredPairs.filter((sp) => !sp.score.hardReject);
   if (valid.length === 0) return;
 
-  // Sort by base score (pre-boost, post-penalty already)
   valid.sort((a, b) => b.score.overall - a.score.overall);
 
   const topNTop = Math.max(1, Math.ceil(valid.length * (topPercent / 100)));
@@ -330,6 +306,7 @@ export function applyRankBoost(
   for (let i = 0; i < valid.length; i++) {
     const sp = valid[i]!;
     const rank = i + 1;
+    if (sp.score.overall < minBase) continue;
     if (i < topNUltra) {
       sp.score.rankBoost = boostAmount * 2;
       sp.score.reasons.push(`Top 3% of current scan (rank #${rank}/${valid.length}) — money concentrating here`);
@@ -341,7 +318,6 @@ export function applyRankBoost(
   }
 }
 
-/** Solana token URL for GMGN dev/holder verification (manual). */
 export function gmgnTokenUrl(tokenAddress: string): string {
   return `https://gmgn.ai/sol/token/${tokenAddress}`;
 }

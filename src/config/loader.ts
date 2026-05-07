@@ -1,8 +1,6 @@
 /**
  * Config loader. Loads strategy from JSON, env vars from .env, validates, and
  * exposes a single typed Config object the rest of the app imports.
- *
- * RULE: never hardcode strategy thresholds elsewhere — read them from here.
  */
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
@@ -31,22 +29,22 @@ export interface AlertTierThresholds {
 
 export interface MoneyFlowAnomalyConfig {
   enabled: boolean;
-  minScore: number;                    // alert threshold 0-100
-  rankBoostTopPercent: number;         // top X% of scan get a bonus
-  rankBoostAmount: number;             // points added for top-X%
-  cooldownMinutes: number;             // per-pair alert dedup window
-  escalationRefireScoreIncrease: number; // re-fire if score jumps by this much
-  lookbackHours: number;               // history window for baseline
-  minLiquidityHardReject: number;      // reject below this absolute floor
-  maxLiquidityDropPct: number;         // anti-rug: % drop triggers reject
-  maxM5VolumeLiquidityRatio: number;   // anti-fake-liq: vol/liq ceiling
+  minScore: number;
+  rankBoostTopPercent: number;
+  rankBoostAmount: number;
+  rankBoostMinBase?: number;
+  cooldownMinutes: number;
+  escalationRefireScoreIncrease: number;
+  lookbackHours: number;
+  minLiquidityHardReject: number;
+  minM5VolumeUsd?: number;
+  minM5Txns?: number;
+  maxLiquidityDropPct: number;
+  maxM5VolumeLiquidityRatio: number;
 }
 
 export interface StrategyConfig {
   chainId: 'solana';
-  // When false, WATCH/RADAR/CAUTION alerts are computed (for telemetry)
-  // but NOT sent to Telegram. The new MONEY_FLOW_ANOMALY layer is the only
-  // user-facing alert.
   tieredAlertsEnabled?: boolean;
   moneyFlowAnomaly?: MoneyFlowAnomalyConfig;
   marketCapMin: number;
@@ -56,14 +54,12 @@ export interface StrategyConfig {
   volumeH24Min: number;
   pairAgeMaxDays: number;
   pollIntervalSeconds: number;
-  // Noise floors — alert is suppressed if either is below threshold
-  minM5Txns?: number;       // default 10 if absent
-  minM5VolumeUsd?: number;  // default 2000 if absent
-  // Anti-manipulation thresholds (all optional with defaults)
-  buyRatioMaxExtreme?: number;        // % above which is "100% bot pump" (e.g. 85)
-  buyRatioMinExtreme?: number;        // % below which is "100% bot dump" (e.g. 20)
-  maxVolumeOverLiquidityRatio?: number; // M5 vol / liquidity ceiling (e.g. 0.5)
-  maxLiquidityDropPct?: number;       // % liquidity drop vs prior snapshot (e.g. 20)
+  minM5Txns?: number;
+  minM5VolumeUsd?: number;
+  buyRatioMaxExtreme?: number;
+  buyRatioMinExtreme?: number;
+  maxVolumeOverLiquidityRatio?: number;
+  maxLiquidityDropPct?: number;
   watchAlert: AlertTierThresholds;
   tradeRadarAlert: AlertTierThresholds;
   cautionAlert: AlertTierThresholds;
@@ -82,11 +78,9 @@ export interface WatchlistConfig {
 }
 
 export interface Config {
-  // From strategy.solana.json
   strategy: StrategyConfig;
   discovery: DiscoveryConfig;
   watchlist: WatchlistConfig;
-  // From env
   telegram: { botToken: string; chatId: string };
   dexscreenerBaseUrl: string;
   pollIntervalSeconds: number;
@@ -138,7 +132,6 @@ export function loadConfig(): Config {
   };
 }
 
-// Singleton — config is loaded once at startup.
 let _config: Config | null = null;
 export function getConfig(): Config {
   if (!_config) _config = loadConfig();
