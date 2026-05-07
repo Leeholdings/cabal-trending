@@ -11,7 +11,7 @@
 import { getConfig } from '../config/loader.js';
 import type { ScoreOutput } from './engine.js';
 
-export type AlertTier = 'WATCH' | 'TRADE_RADAR' | 'CAUTION' | null;
+export type AlertTier = 'WATCH' | 'TRADE_RADAR' | 'CAUTION' | 'MONEY_FLOW_ANOMALY' | null;
 
 export function classifyTier(score: ScoreOutput, priceChangeM5Abs: number): AlertTier {
   const s = getConfig().strategy;
@@ -53,6 +53,7 @@ export function tierRank(t: AlertTier): number {
     case 'WATCH': return 1;
     case 'TRADE_RADAR': return 2;
     case 'CAUTION': return 3;
+    case 'MONEY_FLOW_ANOMALY': return 4;
     default: return 0;
   }
 }

@@ -7,6 +7,8 @@
 import type { DexScreenerPair } from '../dexscreener/client.js';
 import type { ScoreOutput } from '../scoring/engine.js';
 import type { AlertTier } from '../scoring/tiers.js';
+import type { MoneyFlowScore } from '../scoring/money_flow.js';
+import { gmgnTokenUrl } from '../scoring/money_flow.js';
 import { getConfig } from '../config/loader.js';
 
 const fmtRange = (min: number, max: number): string => {
@@ -46,10 +48,11 @@ const fmtPrice = (v: string | number | null | undefined): string => {
 
 const tierEmoji = (t: AlertTier): string => {
   switch (t) {
-    case 'WATCH':       return '👀';
-    case 'TRADE_RADAR': return '🎯';
-    case 'CAUTION':     return '⚠️';
-    default:            return 'ℹ️';
+    case 'WATCH':              return '👀';
+    case 'TRADE_RADAR':        return '🎯';
+    case 'CAUTION':            return '⚠️';
+    case 'MONEY_FLOW_ANOMALY': return '🔥';
+    default:                   return 'ℹ️';
   }
 };
 
@@ -132,6 +135,86 @@ export function formatAlert(args: {
   lines.push(`<b>MEANING:</b> ${tierMeaningLine(tier)}`);
   lines.push(`<b>POSTURE:</b> ${tierPostureLine(tier)}`);
   lines.push('');
+  lines.push('<i>observation only — not financial advice</i>');
+
+  return { text: lines.join('\n'), parseMode: 'HTML' };
+}
+
+/**
+ * Format the MONEY_FLOW_ANOMALY alert. Different shape than the legacy tier
+ * format — emphasizes the "WHY" with multiple bullet reasons, includes risk
+ * flags inline, ranks the pair vs other current candidates, and ends with a
+ * dev-check fallback (GMGN link, since paid APIs are off the table).
+ */
+export function formatMoneyFlowAlert(args: {
+  pair: DexScreenerPair;
+  score: MoneyFlowScore;
+}): FormattedAlert {
+  const { pair, score } = args;
+  const sym  = escHtml(pair.baseToken?.symbol ?? '???');
+  const name = escHtml(pair.baseToken?.name ?? '');
+  const tokenAddress = pair.baseToken?.address ?? '';
+  const url  = escHtml(pair.url ?? `https://dexscreener.com/${pair.chainId}/${pair.pairAddress}`);
+  const gmgnUrl = tokenAddress ? gmgnTokenUrl(tokenAddress) : null;
+  const dexId = (pair.dexId ?? '').toLowerCase();
+  const isPumpfun = dexId.includes('pumpfun') || dexId.includes('pump');
+  const isPumpswap = dexId.includes('pumpswap');
+
+  // Pair age display
+  let ageStr = 'unknown age';
+  if (pair.pairCreatedAt) {
+    const ageDays = (Date.now() - pair.pairCreatedAt) / (24 * 60 * 60 * 1000);
+    if (ageDays < 1) ageStr = `${(ageDays * 24).toFixed(1)}h old`;
+    else if (ageDays < 30) ageStr = `${ageDays.toFixed(1)}d old`;
+    else ageStr = `${(ageDays / 30).toFixed(1)}mo old`;
+  }
+
+  const lines: string[] = [];
+  lines.push(`<b>🔥 MONEY_FLOW_ANOMALY — ${sym}${name && name !== sym ? ` (${name})` : ''}</b>`);
+  lines.push(`<a href="${url}">View on DexScreener</a>`);
+  lines.push('');
+  lines.push(`<b>Score:</b>      <b>${score.overall.toFixed(1)} / 100</b>`
+    + (score.rankBoost > 0 ? `  (base ${score.baseScore.toFixed(1)} + rank +${score.rankBoost})` : ''));
+  lines.push(`<b>Market Cap:</b> ${fmtUsd(pair.marketCap ?? pair.fdv)}`);
+  lines.push(`<b>Liquidity:</b>  ${fmtUsd(pair.liquidity?.usd)}`);
+  lines.push(`<b>Price:</b>      ${fmtPrice(pair.priceUsd)}`);
+  lines.push(`<b>Pair Age:</b>   ${ageStr}`);
+  if (isPumpfun) lines.push(`<b>Launchpad:</b>  Pump.fun`);
+  else if (isPumpswap) lines.push(`<b>DEX:</b>        PumpSwap`);
+  else if (pair.dexId) lines.push(`<b>DEX:</b>        ${escHtml(pair.dexId)}`);
+  lines.push('');
+
+  // WHY block — explain the anomaly
+  lines.push(`<b>WHY:</b>`);
+  if (score.reasons.length === 0) {
+    lines.push(`• Composite score crossed threshold without standout signal`);
+  } else {
+    for (const r of score.reasons) lines.push(`• ${escHtml(r)}`);
+  }
+  lines.push('');
+
+  // Risk flags
+  if (score.riskFlags.length > 0) {
+    lines.push(`<b>⚠️ RISK FLAGS:</b>`);
+    for (const f of score.riskFlags) lines.push(`• ${escHtml(f)}`);
+    lines.push('');
+  }
+
+  // Component breakdown (compact)
+  const c = score.components;
+  lines.push(`<b>Component scores:</b>`);
+  lines.push(`vol-exp ${c.relativeVolumeExpansion.toFixed(0)}  •  txn-exp ${c.transactionExpansion.toFixed(0)}  •  liq-conf ${c.liquidityConfirmation.toFixed(0)}  •  buy-pressure ${c.buyPressureQuality.toFixed(0)}`);
+  lines.push(`sustain ${c.volumeSustainability.toFixed(0)}  •  price/vol ${c.priceVolumeRelationship.toFixed(0)}  •  mc-opp ${c.marketCapOpportunity.toFixed(0)}  •  age×${c.ageContextModifier.toFixed(2)}  •  -safety ${c.safetyPenalty.toFixed(0)}`);
+  lines.push('');
+
+  // Dev reputation check (manual fallback — no paid API)
+  lines.push(`<b>DEV CHECK:</b> Unknown — verify manually`);
+  if (gmgnUrl) {
+    lines.push(`🔗 <a href="${escHtml(gmgnUrl)}">GMGN: dev wallet + holder analysis</a>`);
+  }
+  lines.push(`<i>Check deployer's prior launches. Serial launchers = high rug risk.</i>`);
+  lines.push('');
+
   lines.push('<i>observation only — not financial advice</i>');
 
   return { text: lines.join('\n'), parseMode: 'HTML' };

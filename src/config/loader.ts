@@ -29,8 +29,26 @@ export interface AlertTierThresholds {
   priceChangeM5Min?: number;
 }
 
+export interface MoneyFlowAnomalyConfig {
+  enabled: boolean;
+  minScore: number;                    // alert threshold 0-100
+  rankBoostTopPercent: number;         // top X% of scan get a bonus
+  rankBoostAmount: number;             // points added for top-X%
+  cooldownMinutes: number;             // per-pair alert dedup window
+  escalationRefireScoreIncrease: number; // re-fire if score jumps by this much
+  lookbackHours: number;               // history window for baseline
+  minLiquidityHardReject: number;      // reject below this absolute floor
+  maxLiquidityDropPct: number;         // anti-rug: % drop triggers reject
+  maxM5VolumeLiquidityRatio: number;   // anti-fake-liq: vol/liq ceiling
+}
+
 export interface StrategyConfig {
   chainId: 'solana';
+  // When false, WATCH/RADAR/CAUTION alerts are computed (for telemetry)
+  // but NOT sent to Telegram. The new MONEY_FLOW_ANOMALY layer is the only
+  // user-facing alert.
+  tieredAlertsEnabled?: boolean;
+  moneyFlowAnomaly?: MoneyFlowAnomalyConfig;
   marketCapMin: number;
   marketCapMax: number;
   liquidityMin: number;

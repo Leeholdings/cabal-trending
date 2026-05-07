@@ -1,11 +1,26 @@
 {
   "chainId": "solana",
-  "marketCapMin": 500000,
-  "marketCapMax": 10000000,
-  "liquidityMin": 50000,
-  "liquidityMax": 500000,
-  "volumeH24Min": 200000,
-  "pairAgeMaxDays": 365,
+
+  "tieredAlertsEnabled": false,
+  "moneyFlowAnomaly": {
+    "enabled": true,
+    "minScore": 70,
+    "rankBoostTopPercent": 10,
+    "rankBoostAmount": 5,
+    "cooldownMinutes": 180,
+    "escalationRefireScoreIncrease": 10,
+    "lookbackHours": 4,
+    "minLiquidityHardReject": 5000,
+    "maxLiquidityDropPct": 30,
+    "maxM5VolumeLiquidityRatio": 1.5
+  },
+
+  "marketCapMin": 100000,
+  "marketCapMax": 100000000,
+  "liquidityMin": 5000,
+  "liquidityMax": 5000000,
+  "volumeH24Min": 20000,
+  "pairAgeMaxDays": 730,
   "pollIntervalSeconds": 20,
   "minM5Txns": 40,
   "minM5VolumeUsd": 15000,

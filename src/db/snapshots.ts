@@ -99,6 +99,26 @@ export function recentSnapshots(pairAddress: string, withinMs: number): Snapshot
   `).all(pairAddress, cutoff) as SnapshotRow[];
 }
 
+/** Convenience wrapper for longer baselines used by money-flow scoring. */
+export function recentSnapshotsHours(pairAddress: string, hours: number): SnapshotRow[] {
+  return recentSnapshots(pairAddress, hours * 60 * 60 * 1000);
+}
+
+/** Most recent N alerts of a given tier for a pair. */
+export function recentAlertsForPair(
+  pairAddress: string,
+  tier: string,
+  limit = 1,
+): Array<{ tier: string; timestamp: number; score: number | null }> {
+  return db().prepare(`
+    SELECT tier, timestamp, score FROM alerts
+    WHERE pair_address = ? AND tier = ?
+    ORDER BY timestamp DESC LIMIT ?
+  `).all(pairAddress, tier, limit) as Array<{
+    tier: string; timestamp: number; score: number | null;
+  }>;
+}
+
 export function allTrackedPairs(chainId: string): string[] {
   return (db().prepare(
     `SELECT pair_address FROM pairs WHERE chain_id = ? ORDER BY last_seen DESC`,
@@ -119,7 +139,7 @@ export function lastAlertForPair(pairAddress: string): {
 
 export interface AlertInsert {
   pairAddress: string;
-  tier: 'WATCH' | 'TRADE_RADAR' | 'CAUTION';
+  tier: 'WATCH' | 'TRADE_RADAR' | 'CAUTION' | 'MONEY_FLOW_ANOMALY';
   score: number;
   volumeAcceleration: number;
   priceChangeM5: number | null;
