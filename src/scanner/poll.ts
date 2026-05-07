@@ -138,16 +138,52 @@ export async function runPoll(): Promise<void> {
     const tier = classifyTier(score, priceChangeM5Abs);
     if (!tier) continue;
 
-    // Noise floor: skip alerts where the underlying activity is too thin
-    // to be statistically meaningful. Tunable in config.
+    // ---- Noise floor: skip alerts where activity is too thin to mean anything
     const cfg = getConfig().strategy;
     const minTxns = cfg.minM5Txns ?? 10;
     const minVolUsd = cfg.minM5VolumeUsd ?? 2000;
-    const m5TxnTotal = (p.txns?.m5?.buys ?? 0) + (p.txns?.m5?.sells ?? 0);
+    const m5Buys = p.txns?.m5?.buys ?? 0;
+    const m5Sells = p.txns?.m5?.sells ?? 0;
+    const m5TxnTotal = m5Buys + m5Sells;
     const m5Vol = p.volume?.m5 ?? 0;
+    const liq = p.liquidity?.usd ?? 0;
+    const symbol = p.baseToken.symbol ?? pairAddress;
+
     if (m5TxnTotal < minTxns || m5Vol < minVolUsd) {
-      log.debug(`Suppressing alert for ${p.baseToken.symbol ?? pairAddress}: noise floor not met (txns=${m5TxnTotal}, vol=$${m5Vol.toFixed(0)})`);
+      log.debug(`SKIP ${symbol}: noise floor (txns=${m5TxnTotal}, vol=$${m5Vol.toFixed(0)})`);
       continue;
+    }
+
+    // ---- Anti-manipulation: extreme buy/sell ratios = bot-driven
+    const buyRatioPct = m5TxnTotal > 0 ? (m5Buys / m5TxnTotal) * 100 : 50;
+    const buyMax = cfg.buyRatioMaxExtreme ?? 85;
+    const buyMin = cfg.buyRatioMinExtreme ?? 20;
+    if (buyRatioPct >= buyMax || buyRatioPct <= buyMin) {
+      log.debug(`SKIP ${symbol}: extreme buy ratio ${buyRatioPct.toFixed(0)}% (likely bot/wash)`);
+      continue;
+    }
+
+    // ---- Anti-fake-liquidity: vol/liq sanity. If 5-min vol > X% of total
+    //      liquidity, that's mathematically only possible via wash trading
+    //      or extremely fake liquidity reporting.
+    const maxVolOverLiq = cfg.maxVolumeOverLiquidityRatio ?? 0.5;
+    if (liq > 0 && (m5Vol / liq) > maxVolOverLiq) {
+      log.debug(`SKIP ${symbol}: vol/liq ratio ${(m5Vol / liq).toFixed(2)} > ${maxVolOverLiq} (suspicious activity)`);
+      continue;
+    }
+
+    // ---- Anti-rug: liquidity dropped significantly vs prior snapshots
+    const maxLiqDrop = cfg.maxLiquidityDropPct ?? 20;
+    if (recent.length >= 2 && liq > 0) {
+      const prior = recent[recent.length - 2]!;
+      const priorLiq = prior.liquidity_usd ?? 0;
+      if (priorLiq > 0) {
+        const dropPct = ((priorLiq - liq) / priorLiq) * 100;
+        if (dropPct >= maxLiqDrop) {
+          log.warn(`SKIP ${symbol}: liquidity dropped ${dropPct.toFixed(1)}% (rug in progress?)`);
+          continue;
+        }
+      }
     }
 
     if (!shouldFire(pairAddress, tier)) continue;

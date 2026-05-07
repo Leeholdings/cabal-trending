@@ -41,6 +41,11 @@ export interface StrategyConfig {
   // Noise floors — alert is suppressed if either is below threshold
   minM5Txns?: number;       // default 10 if absent
   minM5VolumeUsd?: number;  // default 2000 if absent
+  // Anti-manipulation thresholds (all optional with defaults)
+  buyRatioMaxExtreme?: number;        // % above which is "100% bot pump" (e.g. 85)
+  buyRatioMinExtreme?: number;        // % below which is "100% bot dump" (e.g. 20)
+  maxVolumeOverLiquidityRatio?: number; // M5 vol / liquidity ceiling (e.g. 0.5)
+  maxLiquidityDropPct?: number;       // % liquidity drop vs prior snapshot (e.g. 20)
   watchAlert: AlertTierThresholds;
   tradeRadarAlert: AlertTierThresholds;
   cautionAlert: AlertTierThresholds;

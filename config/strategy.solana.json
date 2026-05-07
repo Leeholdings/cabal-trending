@@ -2,28 +2,32 @@
   "chainId": "solana",
   "marketCapMin": 500000,
   "marketCapMax": 10000000,
-  "liquidityMin": 40000,
-  "liquidityMax": 300000,
-  "volumeH24Min": 50000,
+  "liquidityMin": 50000,
+  "liquidityMax": 500000,
+  "volumeH24Min": 200000,
   "pairAgeMaxDays": 365,
   "pollIntervalSeconds": 20,
-  "minM5Txns": 10,
-  "minM5VolumeUsd": 2000,
+  "minM5Txns": 40,
+  "minM5VolumeUsd": 15000,
+  "buyRatioMaxExtreme": 85,
+  "buyRatioMinExtreme": 20,
+  "maxVolumeOverLiquidityRatio": 0.5,
+  "maxLiquidityDropPct": 20,
   "watchAlert": {
-    "volumeAccelerationMin": 1.4,
-    "volumeAccelerationMax": 1.8,
-    "priceChangeM5Max": 6
+    "volumeAccelerationMin": 2.5,
+    "volumeAccelerationMax": 4.0,
+    "priceChangeM5Max": 8
   },
   "tradeRadarAlert": {
-    "volumeAccelerationMin": 1.8,
-    "volumeAccelerationMax": 2.5,
-    "priceChangeM5Max": 10
+    "volumeAccelerationMin": 4.0,
+    "volumeAccelerationMax": 8.0,
+    "priceChangeM5Max": 15
   },
   "cautionAlert": {
-    "volumeAccelerationMin": 3.0,
-    "priceChangeM5Min": 20
+    "volumeAccelerationMin": 8.0,
+    "priceChangeM5Min": 30
   },
-  "buyRatioIdealMin": 45,
-  "buyRatioIdealMax": 65,
-  "duplicateAlertCooldownMinutes": 10
+  "buyRatioIdealMin": 55,
+  "buyRatioIdealMax": 75,
+  "duplicateAlertCooldownMinutes": 60
 }
