@@ -47,6 +47,13 @@ jobs:
           LOG_LEVEL: info
         run: npm run scan
 
+      - name: Prune DB (keep size under 100 MB push limit)
+        env:
+          PRUNE_SNAPSHOTS_HOURS: '24'
+          PRUNE_ALERTS_DAYS:     '7'
+          PRUNE_PAIRS_DAYS:      '30'
+        run: npx tsx tools/prune-db.ts
+
       - name: Commit updated DB
         run: |
           git config user.name  "github-actions[bot]"

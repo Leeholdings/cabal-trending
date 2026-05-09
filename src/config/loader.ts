@@ -1,6 +1,5 @@
 /**
- * Config loader. Loads strategy from JSON, env vars from .env, validates, and
- * exposes a single typed Config object the rest of the app imports.
+ * Config loader. Singleton-style getConfig().
  */
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
@@ -96,7 +95,7 @@ function readJson<T>(rel: string): T {
 
 function validateStrategy(s: StrategyConfig): void {
   if (s.chainId !== 'solana') {
-    throw new Error(`Only chainId='solana' is supported. Got: ${s.chainId}`);
+    throw new Error('Only chainId=solana supported. Got: ' + s.chainId);
   }
   if (s.marketCapMin >= s.marketCapMax) throw new Error('marketCapMin >= marketCapMax');
   if (s.liquidityMin >= s.liquidityMax) throw new Error('liquidityMin >= liquidityMax');
@@ -113,7 +112,7 @@ export function loadConfig(): Config {
 
   const chainId = envStr('CHAIN_ID', 'solana');
   if (chainId !== 'solana') {
-    throw new Error(`Only CHAIN_ID=solana is supported. Got: ${chainId}`);
+    throw new Error('Only CHAIN_ID=solana supported. Got: ' + chainId);
   }
 
   return {
