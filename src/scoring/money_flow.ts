@@ -1,8 +1,5 @@
 /**
- * MONEY_FLOW_ANOMALY scorer.
- *
- * RADAR not filter — score every pair on a 0-100 confidence scale.
- * Hard-reject only obvious trash. Cross-pair ranking applied separately.
+ * Legacy MONEY_FLOW_ANOMALY scorer (kept for archival; disable via config).
  */
 import type { SnapshotRow } from '../db/snapshots.js';
 import type { DexScreenerPair } from '../dexscreener/client.js';
@@ -106,134 +103,66 @@ export function scoreMoneyFlow(
 
   const buyRatio = m5TxnTotal > 0 ? (m5Buys / m5TxnTotal) * 100 : 50;
   if (m5Vol > 1000 && (buyRatio >= 97 || buyRatio <= 3)) {
-    return rejectScore('extreme buy ratio with substantial vol');
+    return rejectScore('extreme buy ratio');
   }
 
   const m5VolHistory = snapshots.map((s) => s.volume_m5 ?? 0).filter((v) => v > 0);
   const m5Median = m5VolHistory.length > 0 ? median(m5VolHistory) : m5Vol;
   const volRatio = m5Median > 0 ? m5Vol / m5Median : (m5Vol > 0 ? 1 : 0);
   let relVolScore = clip(((volRatio - 1) / 5) * 100);
-
-  if (snapshots.length >= 4) {
-    const recent3 = snapshots.slice(-4, -1).map((s) => s.volume_m5 ?? 0);
-    const sustainedHigh = recent3.filter((v) => m5Median > 0 && v > m5Median * 2.0).length;
-    if (sustainedHigh >= 2) {
-      relVolScore = clip(relVolScore + 10);
-      reasons.push('Volume ' + volRatio.toFixed(2) + 'x baseline, sustained');
-    } else if (volRatio > 2.0) {
-      reasons.push('Volume ' + volRatio.toFixed(2) + 'x baseline (single spike)');
-    }
-  } else if (volRatio > 2.0) {
-    reasons.push('Volume ' + volRatio.toFixed(2) + 'x baseline (limited history)');
-  }
+  if (volRatio > 2.0) reasons.push('Volume ' + volRatio.toFixed(2) + 'x baseline');
 
   const txnHistory = snapshots.map((s) => s.txns_m5 ?? 0).filter((v) => v > 0);
   const txnMedian = txnHistory.length > 0 ? median(txnHistory) : m5TxnTotal;
   const txnRatio = txnMedian > 0 ? m5TxnTotal / txnMedian : (m5TxnTotal > 0 ? 1 : 0);
   const txnExpScore = clip(((txnRatio - 1) / 4) * 100);
-  if (txnRatio > 2.0) {
-    reasons.push('Txns ' + txnRatio.toFixed(2) + 'x baseline');
-  }
 
   const liqHistory = snapshots.map((s) => s.liquidity_usd ?? 0).filter((v) => v > 0);
   const liqMedian = liqHistory.length > 0 ? median(liqHistory) : liq;
   const liqRatio = liqMedian > 0 ? liq / liqMedian : 1;
-  let liqConfScore: number;
-  if (liqRatio >= 1.05) {
-    liqConfScore = 100;
-    reasons.push('Liquidity grew vs baseline (real participation)');
-  } else if (liqRatio >= 0.98) {
-    liqConfScore = 80;
-  } else if (liqRatio >= 0.90) {
-    liqConfScore = 50;
-    riskFlags.push('Liquidity slightly dropping');
-  } else {
-    liqConfScore = 20;
-    riskFlags.push('Liquidity dropped vs baseline');
-  }
+  let liqConfScore = liqRatio >= 1.05 ? 100 : liqRatio >= 0.98 ? 80 : liqRatio >= 0.90 ? 50 : 20;
 
-  let buyPressureScore: number;
-  if (m5TxnTotal === 0)         buyPressureScore = 30;
-  else if (buyRatio < 40)       buyPressureScore = 30;
-  else if (buyRatio < 50)       buyPressureScore = 50;
-  else if (buyRatio < 60)       buyPressureScore = 75;
-  else if (buyRatio < 75)     { buyPressureScore = 95; reasons.push('Buy pressure healthy'); }
-  else if (buyRatio < 85)     { buyPressureScore = 70; reasons.push('Buy pressure very strong'); }
-  else if (buyRatio < 95)     { buyPressureScore = 40; riskFlags.push('Buy ratio looks bot-driven'); }
-  else                        { buyPressureScore = 10; riskFlags.push('Buy ratio likely bot pump'); }
+  let buyPressureScore = 30;
+  if (buyRatio >= 60 && buyRatio < 75) buyPressureScore = 95;
+  else if (buyRatio >= 75 && buyRatio < 85) buyPressureScore = 70;
+  else if (buyRatio >= 50) buyPressureScore = 75;
 
   const volH1 = pair.volume?.h1 ?? 0;
   const volH6 = pair.volume?.h6 ?? 0;
   const expectedH1Rate = volH6 / 6;
   const sustRatio = expectedH1Rate > 0 ? volH1 / expectedH1Rate : (volH1 > 0 ? 1 : 0);
-  let sustScore: number;
-  if (sustRatio >= 3.5) {
-    sustScore = 100;
-    reasons.push('H1 vol >> H6 avg rate (strong acceleration)');
-  } else if (sustRatio >= 2.0) {
-    sustScore = 75;
-    reasons.push('H1 vol > H6 avg rate');
-  } else if (sustRatio >= 1.2) {
-    sustScore = 40;
-  } else {
-    sustScore = 15;
-  }
+  const sustScore = sustRatio >= 3.5 ? 100 : sustRatio >= 2.0 ? 75 : sustRatio >= 1.2 ? 40 : 15;
 
   const cap = pair.marketCap ?? pair.fdv ?? 0;
-  let mcOpp: number;
-  if (cap < 100_000)         mcOpp = 30;
-  else if (cap < 200_000)    mcOpp = 50;
-  else if (cap < 500_000)    mcOpp = 70;
-  else if (cap <= 5_000_000) mcOpp = 100;
+  let mcOpp = 30;
+  if (cap >= 500_000 && cap <= 5_000_000) mcOpp = 100;
+  else if (cap >= 200_000) mcOpp = 70;
   else if (cap <= 15_000_000) mcOpp = 80;
-  else if (cap <= 50_000_000) mcOpp = 50;
-  else                        mcOpp = 30;
 
   const priceChangeM5 = Math.abs(pair.priceChange?.m5 ?? 0);
-  let pvScore: number;
-  if (volRatio >= 2.0 && priceChangeM5 < 5) {
-    pvScore = 100;
-    reasons.push('Price compressed while vol expanded - staging signature');
-  } else if (volRatio >= 2.0 && priceChangeM5 < 12) {
-    pvScore = 75;
-    reasons.push('Price beginning to respond with volume');
-  } else if (volRatio >= 2.0 && priceChangeM5 < 25) {
-    pvScore = 45;
-    reasons.push('Price moving - mid-move');
-  } else if (volRatio >= 2.0) {
-    pvScore = 20;
-    riskFlags.push('Price already moved - late entry risk');
-  } else {
-    pvScore = 25;
-  }
+  const pvScore = volRatio >= 2.0 && priceChangeM5 < 5 ? 100
+                : volRatio >= 2.0 && priceChangeM5 < 12 ? 75
+                : volRatio >= 2.0 && priceChangeM5 < 25 ? 45
+                : volRatio >= 2.0 ? 20 : 25;
 
   let ageMod = 1.0;
   if (pair.pairCreatedAt) {
     const ageDays = (Date.now() - pair.pairCreatedAt) / (24 * 60 * 60 * 1000);
-    if (ageDays < 1)        ageMod = 1.10;
-    else if (ageDays < 7)   ageMod = 1.20;
-    else if (ageDays < 30)  ageMod = 1.00;
+    if (ageDays < 1) ageMod = 1.10;
+    else if (ageDays < 7) ageMod = 1.20;
     else if (ageDays < 180) ageMod = 0.95;
-    else                    ageMod = 0.85;
+    else ageMod = 0.85;
   }
 
   let safetyPenalty = 0;
-  if (volLiqRatio > 0.5)                    safetyPenalty += 10;
-  if (liqRatio < 0.95)                      safetyPenalty += 5;
-  if (buyRatio >= 90 || buyRatio <= 10)     safetyPenalty += 10;
-  if (volLiqRatio > 0.5)                    riskFlags.push('Vol/liq ratio suspicious');
-  safetyPenalty = Math.min(30, safetyPenalty);
+  if (volLiqRatio > 0.5) safetyPenalty += 10;
+  if (liqRatio < 0.95) safetyPenalty += 5;
+  if (buyRatio >= 90 || buyRatio <= 10) safetyPenalty += 10;
 
   const baseRaw =
-    relVolScore         * 0.25 +
-    txnExpScore         * 0.15 +
-    liqConfScore        * 0.10 +
-    buyPressureScore    * 0.15 +
-    sustScore           * 0.15 +
-    mcOpp               * 0.05 +
-    pvScore             * 0.15;
+    relVolScore * 0.25 + txnExpScore * 0.15 + liqConfScore * 0.10 +
+    buyPressureScore * 0.15 + sustScore * 0.15 + mcOpp * 0.05 + pvScore * 0.15;
   const baseScore = clip(baseRaw * ageMod);
-
   const overall = clip(baseScore - safetyPenalty);
 
   return {
@@ -242,14 +171,14 @@ export function scoreMoneyFlow(
     rankBoost: 0,
     components: {
       relativeVolumeExpansion: Number(relVolScore.toFixed(1)),
-      transactionExpansion:    Number(txnExpScore.toFixed(1)),
-      liquidityConfirmation:   Number(liqConfScore.toFixed(1)),
-      buyPressureQuality:      Number(buyPressureScore.toFixed(1)),
-      volumeSustainability:    Number(sustScore.toFixed(1)),
-      marketCapOpportunity:    Number(mcOpp.toFixed(1)),
+      transactionExpansion: Number(txnExpScore.toFixed(1)),
+      liquidityConfirmation: Number(liqConfScore.toFixed(1)),
+      buyPressureQuality: Number(buyPressureScore.toFixed(1)),
+      volumeSustainability: Number(sustScore.toFixed(1)),
+      marketCapOpportunity: Number(mcOpp.toFixed(1)),
       priceVolumeRelationship: Number(pvScore.toFixed(1)),
-      ageContextModifier:      Number(ageMod.toFixed(2)),
-      safetyPenalty:           Number(safetyPenalty.toFixed(1)),
+      ageContextModifier: Number(ageMod.toFixed(2)),
+      safetyPenalty: Number(safetyPenalty.toFixed(1)),
     },
     reasons, riskFlags, hardReject: false,
     volRatio: Number(volRatio.toFixed(2)),
@@ -271,23 +200,15 @@ export function applyRankBoost(
 
   const valid = scoredPairs.filter((sp) => !sp.score.hardReject);
   if (valid.length === 0) return;
-
   valid.sort((a, b) => b.score.overall - a.score.overall);
-
   const topNTop = Math.max(1, Math.ceil(valid.length * (topPercent / 100)));
   const topNUltra = Math.max(1, Math.ceil(valid.length * 0.03));
 
   for (let i = 0; i < valid.length; i++) {
     const sp = valid[i]!;
-    const rank = i + 1;
     if (sp.score.overall < minBase) continue;
-    if (i < topNUltra) {
-      sp.score.rankBoost = boostAmount * 2;
-      sp.score.reasons.push('Top 3% of scan (rank ' + rank + '/' + valid.length + ')');
-    } else if (i < topNTop) {
-      sp.score.rankBoost = boostAmount;
-      sp.score.reasons.push('Top ' + topPercent + '% of scan (rank ' + rank + '/' + valid.length + ')');
-    }
+    if (i < topNUltra) sp.score.rankBoost = boostAmount * 2;
+    else if (i < topNTop) sp.score.rankBoost = boostAmount;
     sp.score.overall = Number(clip(sp.score.overall + sp.score.rankBoost).toFixed(1));
   }
 }

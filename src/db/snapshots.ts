@@ -99,12 +99,10 @@ export function recentSnapshots(pairAddress: string, withinMs: number): Snapshot
   `).all(pairAddress, cutoff) as SnapshotRow[];
 }
 
-/** Convenience wrapper for longer baselines used by money-flow scoring. */
 export function recentSnapshotsHours(pairAddress: string, hours: number): SnapshotRow[] {
   return recentSnapshots(pairAddress, hours * 60 * 60 * 1000);
 }
 
-/** Most recent N alerts of a given tier for a pair. */
 export function recentAlertsForPair(
   pairAddress: string,
   tier: string,
@@ -139,7 +137,7 @@ export function lastAlertForPair(pairAddress: string): {
 
 export interface AlertInsert {
   pairAddress: string;
-  tier: 'WATCH' | 'TRADE_RADAR' | 'CAUTION' | 'MONEY_FLOW_ANOMALY';
+  tier: 'WATCH' | 'TRADE_RADAR' | 'CAUTION' | 'MONEY_FLOW_ANOMALY' | 'RUNNER';
   score: number;
   volumeAcceleration: number;
   priceChangeM5: number | null;

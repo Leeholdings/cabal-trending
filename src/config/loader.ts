@@ -42,10 +42,43 @@ export interface MoneyFlowAnomalyConfig {
   maxM5VolumeLiquidityRatio: number;
 }
 
+export interface RunnerConfig {
+  enabled: boolean;
+  // Pair age window (days)
+  minAgeDays: number;
+  maxAgeDays: number;
+  // Market cap window (USD)
+  minCapUsd: number;
+  maxCapUsd: number;
+  // H24 volume must be >= this % of market cap
+  turnoverMinPct: number;
+  // H6 vol rate / H24 vol rate must be >= this
+  h6AccelMin: number;
+  // Liquidity must have grown by >= this % across scan window
+  liqGrowthMinPct: number;
+  // H24 buy ratio window (%)
+  buyRatioMin: number;
+  buyRatioMax: number;
+  // H1 price change window (%)
+  h1PriceMin: number;
+  h1PriceMax: number;
+  // H24 price change window (%)
+  h24PriceMin: number;
+  h24PriceMax: number;
+  // H24 transaction count floor
+  h24TxnsMin: number;
+  // DEX allow-list (substring match, lowercase)
+  dexAllowlist?: string[];
+  // Alert plumbing
+  cooldownMinutes: number;
+  lookbackHours: number;
+}
+
 export interface StrategyConfig {
   chainId: 'solana';
   tieredAlertsEnabled?: boolean;
   moneyFlowAnomaly?: MoneyFlowAnomalyConfig;
+  runner?: RunnerConfig;
   marketCapMin: number;
   marketCapMax: number;
   liquidityMin: number;

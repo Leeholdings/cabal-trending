@@ -2,8 +2,9 @@
   "chainId": "solana",
 
   "tieredAlertsEnabled": false,
+
   "moneyFlowAnomaly": {
-    "enabled": true,
+    "enabled": false,
     "minScore": 80,
     "rankBoostTopPercent": 5,
     "rankBoostAmount": 3,
@@ -16,6 +17,27 @@
     "minM5Txns": 25,
     "maxLiquidityDropPct": 25,
     "maxM5VolumeLiquidityRatio": 1.0
+  },
+
+  "runner": {
+    "enabled": true,
+    "minAgeDays": 1,
+    "maxAgeDays": 730,
+    "minCapUsd": 500000,
+    "maxCapUsd": 15000000,
+    "turnoverMinPct": 25,
+    "h6AccelMin": 1.3,
+    "liqGrowthMinPct": 2,
+    "buyRatioMin": 50,
+    "buyRatioMax": 65,
+    "h1PriceMin": -10,
+    "h1PriceMax": 25,
+    "h24PriceMin": -10,
+    "h24PriceMax": 200,
+    "h24TxnsMin": 500,
+    "dexAllowlist": ["raydium", "pumpfun", "pump", "pumpswap", "bonk", "letsbonk", "meteora", "orca"],
+    "cooldownMinutes": 720,
+    "lookbackHours": 6
   },
 
   "marketCapMin": 100000,
