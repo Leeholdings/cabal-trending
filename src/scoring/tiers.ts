@@ -1,6 +1,3 @@
-/**
- * Alert tier classification (legacy MFA + new RUNNER tier).
- */
 import { getConfig } from '../config/loader.js';
 import type { ScoreOutput } from './engine.js';
 
@@ -22,17 +19,13 @@ export function classifyTier(score: ScoreOutput, priceChangeM5Abs: number): Aler
     va >= s.tradeRadarAlert.volumeAccelerationMin &&
     va < (s.tradeRadarAlert.volumeAccelerationMax ?? Infinity) &&
     priceChangeM5Abs < (s.tradeRadarAlert.priceChangeM5Max ?? Infinity)
-  ) {
-    return 'TRADE_RADAR';
-  }
+  ) return 'TRADE_RADAR';
 
   if (
     va >= s.watchAlert.volumeAccelerationMin &&
     va < (s.watchAlert.volumeAccelerationMax ?? Infinity) &&
     priceChangeM5Abs < (s.watchAlert.priceChangeM5Max ?? Infinity)
-  ) {
-    return 'WATCH';
-  }
+  ) return 'WATCH';
 
   return null;
 }
