@@ -9,13 +9,22 @@ export interface RunnerSignal {
   liquidityGrowthPct: number;
   h24Volume: number;
   turnoverPct: number;
-  h6AccelerationRatio: number;
+  // Volume acceleration on a SHORT window (H1 rate vs H6 average rate).
+  // Was H6/H24 — that lagged 2-4hrs into the run. H1/H6 catches early heating.
+  h1AccelerationRatio: number;
+  // Buyer-count surge on the FASTEST window (M5 txns/min vs H1 txns/min).
+  // True leading indicator: real flow arriving usually precedes price by 5-15 min.
+  m5TxnAccelerationRatio: number;
+  m5TxnsTotal: number;
   h24BuyRatio: number;
   h1PriceChange: number;
   h24PriceChange: number;
   h24Txns: number;
   dexId: string;
   reasons: string[];
+  // Back-compat shim — older callers (poll.ts pre-migration) referenced this.
+  // Now it just mirrors h1AccelerationRatio so DB columns stay populated.
+  h6AccelerationRatio: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,9 +38,20 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
   const liq = pair.liquidity?.usd ?? 0;
   const h24Vol = pair.volume?.h24 ?? 0;
   const h6Vol  = pair.volume?.h6  ?? 0;
+  const h1Vol  = pair.volume?.h1  ?? 0;
+
   const h24Buys = pair.txns?.h24?.buys ?? 0;
   const h24Sells = pair.txns?.h24?.sells ?? 0;
   const h24TxnTotal = h24Buys + h24Sells;
+
+  const h1Buys = pair.txns?.h1?.buys ?? 0;
+  const h1Sells = pair.txns?.h1?.sells ?? 0;
+  const h1TxnTotal = h1Buys + h1Sells;
+
+  const m5Buys = pair.txns?.m5?.buys ?? 0;
+  const m5Sells = pair.txns?.m5?.sells ?? 0;
+  const m5TxnTotal = m5Buys + m5Sells;
+
   const h1PriceChange = pair.priceChange?.h1 ?? 0;
   const h24PriceChange = pair.priceChange?.h24 ?? 0;
 
@@ -45,10 +65,26 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
   const turnoverPct = (h24Vol / cap) * 100;
   if (turnoverPct < cfg.turnoverMinPct) return null;
 
-  const h24Rate = h24Vol / 24;
-  const h6Rate  = h6Vol  / 6;
-  const accel = h24Rate > 0 ? h6Rate / h24Rate : 0;
-  if (accel < cfg.h6AccelMin) return null;
+  // --- EARLY DETECTION SIGNAL #1: H1 vs H6 volume acceleration ---
+  // h1Vol = total volume in the last 1 hour (already a per-hour rate)
+  // h6Vol/6 = average per-hour rate over the last 6 hours
+  // Ratio > 1.0 means the last hour is hotter than the prior 6h average.
+  const h6RatePerHour = h6Vol / 6;
+  const h1Accel = h6RatePerHour > 0 ? h1Vol / h6RatePerHour : 0;
+  const h1AccelMin = (cfg as any).h1AccelMin ?? cfg.h6AccelMin ?? 1.3;
+  if (h1Accel < h1AccelMin) return null;
+
+  // --- EARLY DETECTION SIGNAL #2: M5 vs H1 buyer-count surge ---
+  // True leading indicator. Crowd attention shows up in txn-count first,
+  // before it shows up in price. We compare per-minute rates.
+  // Require minimum m5 txn count to avoid alerting on noise from a quiet token.
+  const m5RatePerMin = m5TxnTotal / 5;
+  const h1RatePerMin = h1TxnTotal / 60;
+  const m5TxnAccel = h1RatePerMin > 0 ? m5RatePerMin / h1RatePerMin : 0;
+  const m5TxnsMin     = (cfg as any).m5TxnsMin     ?? 30;
+  const m5TxnAccelMin = (cfg as any).m5TxnAccelMin ?? 3.0;
+  if (m5TxnTotal < m5TxnsMin) return null;
+  if (m5TxnAccel < m5TxnAccelMin) return null;
 
   let liqGrowthPct = 0;
   if (snapshots.length >= 2) {
@@ -70,7 +106,9 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
   const reasons: string[] = [];
   reasons.push('Age ' + ageDays.toFixed(1) + 'd, cap $' + (cap/1e6).toFixed(2) + 'M');
   reasons.push('H24 vol $' + (h24Vol/1e6).toFixed(2) + 'M = ' + turnoverPct.toFixed(0) + '% of MC');
-  reasons.push('H6 rate ' + accel.toFixed(2) + 'x H24 avg (accelerating)');
+  // NEW early-detection lines (replacing the old "H6 rate vs H24 avg" line):
+  reasons.push('H1 vol rate ' + h1Accel.toFixed(2) + 'x H6 avg (early heat)');
+  reasons.push('M5 buyer surge: ' + m5TxnAccel.toFixed(2) + 'x H1 rate (' + Math.round(m5RatePerMin) + ' txns/min)');
   if (liqGrowthPct > 0) reasons.push('Liquidity +' + liqGrowthPct.toFixed(1) + '% over scan window');
   reasons.push('H24 buy ratio ' + h24BuyRatio.toFixed(0) + '% (slight bullish)');
   reasons.push('Price ' + (h24PriceChange >= 0 ? '+' : '') + h24PriceChange.toFixed(1) + '% (24h), '
@@ -79,9 +117,13 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
 
   return {
     ageDays, marketCap: cap, liquidityUsd: liq, liquidityGrowthPct: liqGrowthPct,
-    h24Volume: h24Vol, turnoverPct, h6AccelerationRatio: accel,
+    h24Volume: h24Vol, turnoverPct,
+    h1AccelerationRatio: h1Accel,
+    m5TxnAccelerationRatio: m5TxnAccel,
+    m5TxnsTotal: m5TxnTotal,
     h24BuyRatio, h1PriceChange, h24PriceChange, h24Txns: h24TxnTotal,
     dexId: pair.dexId ?? 'unknown', reasons,
+    h6AccelerationRatio: h1Accel,  // back-compat shim
   };
 }
 

@@ -122,7 +122,7 @@ export async function runPoll(): Promise<void> {
           age: signal.ageDays.toFixed(1) + 'd',
           cap: '$' + (signal.marketCap / 1e6).toFixed(2) + 'M',
           turnover: signal.turnoverPct.toFixed(0) + '%',
-          accel: signal.h6AccelerationRatio.toFixed(2) + 'x',
+          accel: signal.h1AccelerationRatio.toFixed(2) + 'x',
         });
       }
     }
