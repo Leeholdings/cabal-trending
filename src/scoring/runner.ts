@@ -75,16 +75,13 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
   if (h1Accel < h1AccelMin) return null;
 
   // --- EARLY DETECTION SIGNAL #2: M5 vs H1 buyer-count surge ---
-  // True leading indicator. Crowd attention shows up in txn-count first,
-  // before it shows up in price. We compare per-minute rates.
-  // Require minimum m5 txn count to avoid alerting on noise from a quiet token.
+  // INFORMATIONAL ONLY (no hard gate) — surfaces extra confidence in the
+  // alert message when present, but doesn't block alerts from firing.
+  // True leading indicator: crowd attention shows up in txn-count first,
+  // before price. Compare per-minute rates.
   const m5RatePerMin = m5TxnTotal / 5;
   const h1RatePerMin = h1TxnTotal / 60;
   const m5TxnAccel = h1RatePerMin > 0 ? m5RatePerMin / h1RatePerMin : 0;
-  const m5TxnsMin     = (cfg as any).m5TxnsMin     ?? 30;
-  const m5TxnAccelMin = (cfg as any).m5TxnAccelMin ?? 3.0;
-  if (m5TxnTotal < m5TxnsMin) return null;
-  if (m5TxnAccel < m5TxnAccelMin) return null;
 
   let liqGrowthPct = 0;
   if (snapshots.length >= 2) {
@@ -108,7 +105,10 @@ export function detectRunner(snapshots: SnapshotRow[], pair: DexScreenerPair): R
   reasons.push('H24 vol $' + (h24Vol/1e6).toFixed(2) + 'M = ' + turnoverPct.toFixed(0) + '% of MC');
   // NEW early-detection lines (replacing the old "H6 rate vs H24 avg" line):
   reasons.push('H1 vol rate ' + h1Accel.toFixed(2) + 'x H6 avg (early heat)');
-  reasons.push('M5 buyer surge: ' + m5TxnAccel.toFixed(2) + 'x H1 rate (' + Math.round(m5RatePerMin) + ' txns/min)');
+  // Only show M5 surge line when it's a meaningful signal (>=2x AND enough sample)
+  if (m5TxnTotal >= 20 && m5TxnAccel >= 2.0) {
+    reasons.push('M5 buyer surge: ' + m5TxnAccel.toFixed(2) + 'x H1 rate (' + Math.round(m5RatePerMin) + ' txns/min)');
+  }
   if (liqGrowthPct > 0) reasons.push('Liquidity +' + liqGrowthPct.toFixed(1) + '% over scan window');
   reasons.push('H24 buy ratio ' + h24BuyRatio.toFixed(0) + '% (slight bullish)');
   reasons.push('Price ' + (h24PriceChange >= 0 ? '+' : '') + h24PriceChange.toFixed(1) + '% (24h), '
