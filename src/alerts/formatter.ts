@@ -4,6 +4,8 @@ import type { AlertTier } from '../scoring/tiers.js';
 import type { MoneyFlowScore } from '../scoring/money_flow.js';
 import type { RunnerSignal } from '../scoring/runner.js';
 import { gmgnTokenUrl } from '../scoring/runner.js';
+import type { DevCheck } from '../dev_check/check.js';
+import { riskEmoji } from '../dev_check/check.js';
 
 const escHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -54,8 +56,8 @@ export function formatMoneyFlowAlert(args: { pair: DexScreenerPair; score: Money
   return { text: lines.join('\n'), parseMode: 'HTML' };
 }
 
-export function formatRunnerAlert(args: { pair: DexScreenerPair; signal: RunnerSignal }): FormattedAlert {
-  const { pair, signal } = args;
+export function formatRunnerAlert(args: { pair: DexScreenerPair; signal: RunnerSignal; devCheck?: DevCheck | null }): FormattedAlert {
+  const { pair, signal, devCheck } = args;
   const sym = escHtml(pair.baseToken?.symbol ?? '???');
   const name = escHtml(pair.baseToken?.name ?? '');
   const tokenAddress = pair.baseToken?.address ?? '';
@@ -75,6 +77,20 @@ export function formatRunnerAlert(args: { pair: DexScreenerPair; signal: RunnerS
   lines.push('<b>WHY:</b>');
   for (const r of signal.reasons) lines.push('• ' + escHtml(r));
   lines.push('');
+
+  // DEV CHECK — replaces the static "Unknown" line with real signal
+  if (devCheck) {
+    lines.push('<b>DEV/HOLDER CHECK:</b> ' + riskEmoji(devCheck.rugRisk) + ' <b>' + devCheck.rugRisk + '</b> — ' + escHtml(devCheck.summary));
+    if (devCheck.reasons.length) {
+      for (const r of devCheck.reasons) lines.push('• ⚠ ' + escHtml(r));
+    } else if (devCheck.rugRisk === 'LOW') {
+      lines.push('• ✓ No active mint/freeze authorities, holder distribution looks healthy');
+    }
+  } else {
+    lines.push('<b>DEV/HOLDER CHECK:</b> ⚪ Unknown — Solscan unreachable, verify manually');
+  }
+  lines.push('');
+
   if (gUrl) lines.push('🔗 <a href="' + escHtml(gUrl) + '">GMGN: dev wallet + holder analysis</a>');
   lines.push('');
   lines.push('<i>⚠ Runner pattern, NOT a guarantee. Observation only.</i>');

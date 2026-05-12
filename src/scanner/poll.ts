@@ -7,6 +7,7 @@ import { formatRunnerAlert } from '../alerts/formatter.js';
 import { sendTelegramMessage, isTelegramConfigured } from '../alerts/telegram.js';
 import { getConfig } from '../config/loader.js';
 import { log } from '../util/logger.js';
+import { runDevCheck } from '../dev_check/check.js';
 
 let _lastDiscoveryAt = 0;
 
@@ -98,7 +99,8 @@ export async function runPoll(): Promise<void> {
         continue;
       }
 
-      const formatted = formatRunnerAlert({ pair, signal });
+      const devCheck = await runDevCheck(pair.baseToken?.address ?? '', pair.pairAddress).catch(() => null);
+      const formatted = formatRunnerAlert({ pair, signal, devCheck });
       let sent = false;
       if (isTelegramConfigured()) sent = await sendTelegramMessage(formatted);
 
