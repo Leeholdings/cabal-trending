@@ -42,7 +42,7 @@
       "meteora",
       "orca"
     ],
-    "cooldownMinutes": 720,
+    "cooldownMinutes": 1440,
     "lookbackHours": 6,
     "h1AccelMin": 0.9,
     "m5TxnAccelMin": 3.0,
