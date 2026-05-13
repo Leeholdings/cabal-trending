@@ -44,7 +44,7 @@
     ],
     "cooldownMinutes": 720,
     "lookbackHours": 6,
-    "h1AccelMin": 1.3,
+    "h1AccelMin": 0.9,
     "m5TxnAccelMin": 3.0,
     "m5TxnsMin": 30
   },
