@@ -18,7 +18,12 @@ function main(): void {
   const snapCutoff   = Date.now() - SNAPSHOT_HOURS * 3600_000;
   const alertCutoff  = Date.now() - ALERT_DAYS * 86400_000;
   const pairsCutoff  = Date.now() - PAIRS_DAYS * 86400_000;
-  conn.prepare('UPDATE snapshots SET raw_json = ?').run('');
+  // NB: previously wiped raw_json to '' on every run as a size-control
+  // measure when raw_json held the full DexScreener payload. Removed —
+  // raw_json is now ~500 bytes of slim JSON that downstream consumers
+  // (smart-wallet-lab CHoCH detector) need to read out of the committed DB.
+  // Size math: 200 pairs × 32 snapshots × 500 bytes ≈ 3.2 MB, well under
+  // GitHub's 100 MB push limit.
   const delAlerts = conn.prepare('DELETE FROM alerts WHERE timestamp < ?').run(alertCutoff).changes;
   const delSnaps  = conn.prepare('DELETE FROM snapshots WHERE timestamp < ?').run(snapCutoff).changes;
   const delPairs  = conn.prepare('DELETE FROM pairs WHERE last_seen < ?').run(pairsCutoff).changes;

@@ -26,9 +26,11 @@ export function insertSnapshot(p: DexScreenerPair): number {
   const txnsM5 = (m5.buys ?? 0) + (m5.sells ?? 0);
   const txnsH1 = (h1.buys ?? 0) + (h1.sells ?? 0);
   // Slim raw_json — only the fields downstream consumers (smart-wallet-lab
-  // CHoCH detector, future replay/backtest) actually need. Storing the full
-  // pair object would 5-10x the row size; this slim form is ~1KB and keeps
-  // us well under GitHub's 100MB push limit even with 8h × 200 pairs.
+  // CHoCH detector, future replay/backtest) actually need. Measured ~500 bytes
+  // per row for a typical Solana pair; with 8h freshness × ~200 pairs × 32
+  // snapshots/pair this adds ~3 MB to the DB, well under GitHub's 100 MB
+  // push limit. NB: tools/prune-db.ts previously wiped this field on every
+  // run; that wipe has been removed.
   const slimJson = JSON.stringify({
     priceChange: p.priceChange ?? null,
     txns: p.txns ?? null,
