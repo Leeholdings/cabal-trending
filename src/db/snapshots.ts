@@ -25,13 +25,28 @@ export function insertSnapshot(p: DexScreenerPair): number {
   const h1 = txns.h1 ?? { buys: 0, sells: 0 };
   const txnsM5 = (m5.buys ?? 0) + (m5.sells ?? 0);
   const txnsH1 = (h1.buys ?? 0) + (h1.sells ?? 0);
+  // Slim raw_json — only the fields downstream consumers (smart-wallet-lab
+  // CHoCH detector, future replay/backtest) actually need. Storing the full
+  // pair object would 5-10x the row size; this slim form is ~1KB and keeps
+  // us well under GitHub's 100MB push limit even with 8h × 200 pairs.
+  const slimJson = JSON.stringify({
+    priceChange: p.priceChange ?? null,
+    txns: p.txns ?? null,
+    volume: p.volume ?? null,
+    liquidity: p.liquidity ?? null,
+    marketCap: p.marketCap ?? null,
+    fdv: p.fdv ?? null,
+    pairCreatedAt: p.pairCreatedAt ?? null,
+    dexId: p.dexId ?? null,
+    baseToken: p.baseToken ?? null,
+  });
   const r = db().prepare(`INSERT INTO snapshots (pair_address, timestamp, price_usd, market_cap, fdv, liquidity_usd, volume_m5, volume_h1, volume_h6, volume_h24, buys_m5, sells_m5, txns_m5, txns_h1, price_change_m5, price_change_h1, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     p.pairAddress, Date.now(),
     p.priceUsd ? Number(p.priceUsd) : null, p.marketCap ?? null, p.fdv ?? null, p.liquidity?.usd ?? null,
     p.volume?.m5 ?? null, p.volume?.h1 ?? null, p.volume?.h6 ?? null, p.volume?.h24 ?? null,
     m5.buys ?? null, m5.sells ?? null, txnsM5, txnsH1,
     p.priceChange?.m5 ?? null, p.priceChange?.h1 ?? null,
-    '',
+    slimJson,
   );
   return Number(r.lastInsertRowid);
 }
